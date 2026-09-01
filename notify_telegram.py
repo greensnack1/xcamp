@@ -38,13 +38,9 @@ def _collect(weekday: int) -> list[str]:
             parts = []
             for code, name in cs.PRODUCT_GROUPS.items():
                 sites = cs.get_available_sites(code, day)
-                if sites:
-                    names = ", ".join(s["product_name"] for s in sites)
-                    parts.append(f"{name} {len(sites)}자리 [{names}]")
-                else:
-                    parts.append(f"{name} 0")
+                parts.append(f"{name} {len(sites)}")
             wl = cs.WEEKDAY_LABELS[weekday]
-            lines.append(f"• {cs.fmt(day)} ({wl}) 잔여 {total} → " + " / ".join(parts))
+            lines.append(f"• {cs.fmt(day)} ({wl}) → " + " / ".join(parts))
     return lines
 
 
