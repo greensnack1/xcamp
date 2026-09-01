@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+xticket_glamping_state.json
+xt_*.txt

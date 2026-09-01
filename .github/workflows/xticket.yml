@@ -1,0 +1,37 @@
+name: xticket-camp-notify
+
+on:
+  schedule:
+    # UTC 기준. '*/30 * * * *' = 30분마다.
+    # (GitHub 무료 스케줄은 몇 분~수십 분 지연될 수 있음)
+    - cron: "*/30 * * * *"
+  workflow_dispatch:        # 수동 실행 버튼
+    inputs:
+      weekday:
+        description: "감시 요일 (sat/tue/1 등)"
+        default: "sat"
+      notify_always:
+        description: "잔여 없어도 알림 보낼지 (1=보냄, 수동 테스트용)"
+        default: "0"
+
+concurrency:
+  group: xticket-notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check availability and notify
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WEEKDAY: ${{ github.event.inputs.weekday || 'sat' }}
+          NOTIFY_ALWAYS: ${{ github.event.inputs.notify_always || '0' }}
+        run: python3 notify_telegram.py
