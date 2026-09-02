@@ -2,9 +2,9 @@ name: xticket-camp-notify
 
 on:
   schedule:
-    # UTC 기준. '*/5 * * * *' = 5분마다.
+    # UTC 기준. '*/10 * * * *' = 10분마다.
     # (GitHub 무료 스케줄은 실제로는 몇 분~십수 분 지연될 수 있음)
-    - cron: "*/5 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:        # 수동 실행 버튼
     inputs:
       weekday:
