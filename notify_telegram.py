@@ -27,7 +27,13 @@ WEEKDAY_ALIASES = cs.WEEKDAY_ALIASES
 
 
 def _collect(weekday: int) -> list[str]:
-    """잔여 있는 날의 요약 라인만 수집(콘솔 출력 없이)."""
+    """실제 예약 가능한 사이트가 있는 날의 요약 라인만 수집(콘솔 출력 없이).
+
+    주의: GetBookPlayDate의 book_remain_count(total)는 사전예약일 등에서
+    실제 예약 가능 여부와 무관하게 0보다 클 수 있으므로, 그룹별 실제
+    예약 가능 사이트 수(status_code=='0' && select_yn=='1')의 합이 0보다
+    큰 날만 알림 대상으로 삼는다.
+    """
     lines: list[str] = []
     for ym in cs.current_and_next_month():
         remain = cs.get_play_dates(ym)
@@ -36,9 +42,14 @@ def _collect(weekday: int) -> list[str]:
             if not total:
                 continue
             parts = []
+            available = 0
             for code, name in cs.PRODUCT_GROUPS.items():
                 sites = cs.get_available_sites(code, day)
+                available += len(sites)
                 parts.append(f"{name} {len(sites)}")
+            # 그룹별 실제 예약 가능 사이트가 하나도 없으면(사전예약일 등) 건너뜀
+            if available == 0:
+                continue
             wl = cs.WEEKDAY_LABELS[weekday]
             lines.append(f"• {cs.fmt(day)} ({wl}) → " + " / ".join(parts))
     return lines
