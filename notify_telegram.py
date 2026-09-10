@@ -16,6 +16,7 @@ check_saturday.py의 조회 로직을 재사용해 '잔여 있는 날'만 모아
 """
 from __future__ import annotations
 
+import datetime as _dt
 import os
 import sys
 import urllib.parse
@@ -24,6 +25,22 @@ import urllib.request
 import check_saturday as cs
 
 WEEKDAY_ALIASES = cs.WEEKDAY_ALIASES
+
+# 매월 9일 13:00~23:59(KST)엔 '다음 달' 물량이 고향사랑기부제 우선예약(데크 2면)으로
+# 잠깐 열린다. 일반 빈자리가 아니라 우선예약분이라 오탐 알림이 되므로,
+# KST 기준 9일에는 다음 달을 조회 대상에서 빼고 '이번 달'만 조회한다.
+# (GitHub Actions는 UTC로 돌아 KST로 변환해 판정)
+SKIP_NEXTMONTH_DAY = 9
+KST = _dt.timezone(_dt.timedelta(hours=9))
+
+
+def _months_to_check(now_utc: _dt.datetime | None = None) -> list[str]:
+    """조회할 월 목록. KST 기준 매월 9일이면 이번 달만, 그 외엔 이번 달+다음 달."""
+    now_utc = now_utc or _dt.datetime.now(_dt.timezone.utc)
+    months = cs.current_and_next_month()  # [이번달, 다음달]
+    if now_utc.astimezone(KST).day == SKIP_NEXTMONTH_DAY:
+        return months[:1]  # 다음 달 제외
+    return months
 
 
 def _collect(weekday: int) -> list[str]:
@@ -35,7 +52,7 @@ def _collect(weekday: int) -> list[str]:
     큰 날만 알림 대상으로 삼는다.
     """
     lines: list[str] = []
-    for ym in cs.current_and_next_month():
+    for ym in _months_to_check():
         remain = cs.get_play_dates(ym)
         for day in cs.weekdays_in(ym, weekday):
             total = remain.get(day)
