@@ -43,14 +43,19 @@ def _months_to_check(now_utc: _dt.datetime | None = None) -> list[str]:
     return months
 
 
-def _collect(weekday: int) -> list[str]:
+def _collect(weekday: int, groups: list[str] | None = None) -> list[str]:
     """실제 예약 가능한 사이트가 있는 날의 요약 라인만 수집(콘솔 출력 없이).
 
+    groups: 조회/표시할 상품 그룹 코드 리스트(예: ['0002']=글램핑만).
+            None이면 전체 그룹(데크캠핑장+글램핑).
+
     주의: GetBookPlayDate의 book_remain_count(total)는 사전예약일 등에서
-    실제 예약 가능 여부와 무관하게 0보다 클 수 있으므로, 그룹별 실제
+    실제 예약 가능 여부와 무관하게 0보다 클 수 있으므로, 대상 그룹의 실제
     예약 가능 사이트 수(status_code=='0' && select_yn=='1')의 합이 0보다
     큰 날만 알림 대상으로 삼는다.
     """
+    group_items = [(c, n) for c, n in cs.PRODUCT_GROUPS.items()
+                   if groups is None or c in groups]
     lines: list[str] = []
     for ym in _months_to_check():
         remain = cs.get_play_dates(ym)
@@ -60,11 +65,11 @@ def _collect(weekday: int) -> list[str]:
                 continue
             parts = []
             available = 0
-            for code, name in cs.PRODUCT_GROUPS.items():
+            for code, name in group_items:
                 sites = cs.get_available_sites(code, day)
                 available += len(sites)
                 parts.append(f"{name} {len(sites)}")
-            # 그룹별 실제 예약 가능 사이트가 하나도 없으면(사전예약일 등) 건너뜀
+            # 대상 그룹에 실제 예약 가능 사이트가 하나도 없으면(사전예약일 등) 건너뜀
             if available == 0:
                 continue
             wl = cs.WEEKDAY_LABELS[weekday]
@@ -91,20 +96,20 @@ def main() -> None:
               file=sys.stderr)
         raise SystemExit(1)
 
-    token_arg = os.environ.get("WEEKDAY", "sat").lower()
-    weekday = WEEKDAY_ALIASES.get(
-        token_arg, int(token_arg) if token_arg.isdigit() else 5)
-
-    lines = _collect(weekday)
-    wl = cs.WEEKDAY_LABELS[weekday]
+    # 감시 규칙: 토요일은 전체 그룹(데크+글램핑), 일요일은 글램핑(0002)만.
+    #   토요일 데크는 자리가 흔해 노이즈라 일요일은 글램핑만 본다.
+    GLAMPING = "0002"
+    lines = _collect(5) + _collect(6, groups=[GLAMPING])  # 5=토, 6=일
 
     if lines:
-        msg = (f"🏕️ 앵봉산캠핑장 {wl}요일 빈자리\n\n" + "\n".join(lines)
+        msg = ("🏕️ 앵봉산캠핑장 빈자리 (토: 전체 / 일: 글램핑)\n\n"
+               + "\n".join(lines)
                + f"\n\n예약: {cs.BASE}/web/main?shopEncode={cs.SHOP_ENCODE}")
         _send_telegram(token, chat_id, msg)
         print(f"sent {len(lines)} line(s)")
     elif os.environ.get("NOTIFY_ALWAYS") == "1":
-        _send_telegram(token, chat_id, f"앵봉산캠핑장 {wl}요일: 잔여 있는 날 없음")
+        _send_telegram(token, chat_id,
+                       "앵봉산캠핑장: 토요일 전체/일요일 글램핑 잔여 있는 날 없음")
         print("sent (none)")
     else:
         print("no availability; nothing sent")
