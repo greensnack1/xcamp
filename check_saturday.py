@@ -150,8 +150,15 @@ def fmt(date: str) -> str:
     return f"{date[:4]}-{date[4:6]}-{date[6:8]}"
 
 
-def check_month(year_month: str, weekday: int = 5) -> list[str]:
-    """해당 월의 지정 요일 빈자리를 조회해 출력하고, 빈자리 요약 라인 리스트를 반환."""
+def check_month(year_month: str, weekday: int = 5,
+                groups: list[str] | None = None) -> list[str]:
+    """해당 월의 지정 요일 빈자리를 조회해 출력하고, 빈자리 요약 라인 리스트를 반환.
+
+    groups: 조회/표시할 상품 그룹 코드(['0001']=데크, ['0002']=글램핑).
+            None이면 전체 그룹.
+    """
+    group_items = [(c, n) for c, n in PRODUCT_GROUPS.items()
+                   if groups is None or c in groups]
     wl = WEEKDAY_LABELS[weekday]
     print(f"\n=== {year_month[:4]}년 {year_month[4:6]}월 {wl}요일 ===")
     found = []
@@ -170,16 +177,22 @@ def check_month(year_month: str, weekday: int = 5) -> list[str]:
 
         # 그룹별 상세 빈자리
         parts = []
-        for code, name in PRODUCT_GROUPS.items():
+        available = 0
+        for code, name in group_items:
             try:
                 sites = get_available_sites(code, day)
             except SessionExpired:
                 raise SystemExit(2)
+            available += len(sites)
             if sites:
                 names = ", ".join(s["product_name"] for s in sites)
                 parts.append(f"{name} {len(sites)}자리 [{names}]")
             else:
                 parts.append(f"{name} 0")
+        # book_remain_count(total)>0이라도 대상 그룹에 실제 예약 가능 사이트가
+        # 하나도 없으면(고향사랑기부제 우선예약 등) 오탐이므로 건너뜀
+        if available == 0:
+            continue
         line = f"{fmt(day)} ({wl}) : 잔여 {total} → " + " / ".join(parts)
         print(f"  {line}")
         found.append(line)
@@ -204,20 +217,28 @@ WEEKDAY_ALIASES = {
 
 
 def main() -> None:
-    # 사용법: python3 check_saturday.py [--day 화|tue|1] [YYYYMM ...]
+    # 사용법:
+    #   python3 check_saturday.py                 -> 토요일(전체) + 일요일(데크·이번달)
+    #   python3 check_saturday.py --day 화 [YYYYMM ...]  -> 특정 요일만(전체 그룹)
     args = sys.argv[1:]
-    weekday = 5  # 기본: 토요일
+
     if args and args[0] == "--day":
         token = args[1].lower()
         weekday = WEEKDAY_ALIASES.get(token,
                                       int(token) if token.isdigit() else 5)
-        args = args[2:]
+        months = args[2:] if args[2:] else current_and_next_month()
+        print(f"앵봉산캠핑장 {WEEKDAY_LABELS[weekday]}요일 빈자리 조회")
+        for ym in months:
+            check_month(ym, weekday)
+        return
 
-    months = args if args else current_and_next_month()
-
-    print(f"앵봉산캠핑장 {WEEKDAY_LABELS[weekday]}요일 빈자리 조회")
+    # 기본: 알림 규칙과 동일하게 토요일(전체 그룹, 이번+다음 달)
+    #       + 일요일(데크만, 이번 달만) 조회
+    months = current_and_next_month()
+    print("앵봉산캠핑장 빈자리 조회 (토: 전체 / 일: 데크·이번달)")
     for ym in months:
-        check_month(ym, weekday)
+        check_month(ym, 5)  # 토요일, 전체 그룹
+    check_month(months[0], 6, groups=["0001"])  # 일요일, 데크만, 이번 달만
 
 
 if __name__ == "__main__":
