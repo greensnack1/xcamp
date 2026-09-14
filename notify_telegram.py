@@ -43,11 +43,13 @@ def _months_to_check(now_utc: _dt.datetime | None = None) -> list[str]:
     return months
 
 
-def _collect(weekday: int, groups: list[str] | None = None) -> list[str]:
+def _collect(weekday: int, groups: list[str] | None = None,
+             months: list[str] | None = None) -> list[str]:
     """실제 예약 가능한 사이트가 있는 날의 요약 라인만 수집(콘솔 출력 없이).
 
-    groups: 조회/표시할 상품 그룹 코드 리스트(예: ['0002']=글램핑만).
+    groups: 조회/표시할 상품 그룹 코드 리스트(['0001']=데크, ['0002']=글램핑).
             None이면 전체 그룹(데크캠핑장+글램핑).
+    months: 조회할 월(YYYYMM) 리스트. None이면 _months_to_check().
 
     주의: GetBookPlayDate의 book_remain_count(total)는 사전예약일 등에서
     실제 예약 가능 여부와 무관하게 0보다 클 수 있으므로, 대상 그룹의 실제
@@ -57,7 +59,7 @@ def _collect(weekday: int, groups: list[str] | None = None) -> list[str]:
     group_items = [(c, n) for c, n in cs.PRODUCT_GROUPS.items()
                    if groups is None or c in groups]
     lines: list[str] = []
-    for ym in _months_to_check():
+    for ym in (months if months is not None else _months_to_check()):
         remain = cs.get_play_dates(ym)
         for day in cs.weekdays_in(ym, weekday):
             total = remain.get(day)
@@ -96,20 +98,22 @@ def main() -> None:
               file=sys.stderr)
         raise SystemExit(1)
 
-    # 감시 규칙: 토요일은 전체 그룹(데크+글램핑), 일요일은 글램핑(0002)만.
-    #   토요일 데크는 자리가 흔해 노이즈라 일요일은 글램핑만 본다.
-    GLAMPING = "0002"
-    lines = _collect(5) + _collect(6, groups=[GLAMPING])  # 5=토, 6=일
+    # 감시 규칙:
+    #   토요일 = 전체 그룹(데크+글램핑), 이번 달+다음 달
+    #   일요일 = 데크(0001)만, '이번 달(조회 첫 달)'만
+    DECK = "0001"
+    this_month = _months_to_check()[:1]
+    lines = _collect(5) + _collect(6, groups=[DECK], months=this_month)  # 5=토, 6=일
 
     if lines:
-        msg = ("🏕️ 앵봉산캠핑장 빈자리 (토: 전체 / 일: 글램핑)\n\n"
+        msg = ("🏕️ 앵봉산캠핑장 빈자리 (토: 전체 / 일: 데크·이번달)\n\n"
                + "\n".join(lines)
                + f"\n\n예약: {cs.BASE}/web/main?shopEncode={cs.SHOP_ENCODE}")
         _send_telegram(token, chat_id, msg)
         print(f"sent {len(lines)} line(s)")
     elif os.environ.get("NOTIFY_ALWAYS") == "1":
         _send_telegram(token, chat_id,
-                       "앵봉산캠핑장: 토요일 전체/일요일 글램핑 잔여 있는 날 없음")
+                       "앵봉산캠핑장: 토요일 전체/일요일 데크(이번달) 잔여 있는 날 없음")
         print("sent (none)")
     else:
         print("no availability; nothing sent")
