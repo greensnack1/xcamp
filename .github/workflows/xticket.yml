@@ -13,6 +13,9 @@ on:
       notify_always:
         description: "잔여 없어도 알림 보낼지 (1=보냄, 수동 테스트용)"
         default: "0"
+      watch_sunday_deck:
+        description: "일요일 데크(이번달)도 감시할지 (1=감시, 수동 실행용)"
+        default: "0"
 
 concurrency:
   group: xticket-notify
@@ -34,4 +37,6 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           WEEKDAY: ${{ github.event.inputs.weekday || 'sat' }}
           NOTIFY_ALWAYS: ${{ github.event.inputs.notify_always || '0' }}
+          # ▼▼▼ 일요일 데크 감시 토글: 평소엔 '0'(끔). 켜려면 이 '0'을 '1'로 바꿔 push. ▼▼▼
+          WATCH_SUNDAY_DECK: ${{ github.event.inputs.watch_sunday_deck || '0' }}
         run: python3 notify_telegram.py

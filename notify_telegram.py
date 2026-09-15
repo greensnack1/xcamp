@@ -99,21 +99,27 @@ def main() -> None:
         raise SystemExit(1)
 
     # 감시 규칙:
-    #   토요일 = 전체 그룹(데크+글램핑), 이번 달+다음 달
-    #   일요일 = 데크(0001)만, '이번 달(조회 첫 달)'만
+    #   토요일 = 전체 그룹(데크+글램핑), 이번 달+다음 달  (항상 감시)
+    #   일요일 = 데크(0001)만, 이번 달만  (env WATCH_SUNDAY_DECK=1 일 때만 감시)
+    #     -> 일요일 데크 예약을 잡으면 끄고, 다시 필요하면 켜는 식으로 토글.
+    #        코드 수정 없이 xticket.yml env / 수동실행 입력으로 on/off.
     DECK = "0001"
-    this_month = _months_to_check()[:1]
-    lines = _collect(5) + _collect(6, groups=[DECK], months=this_month)  # 5=토, 6=일
+    watch_sunday = os.environ.get("WATCH_SUNDAY_DECK", "0") == "1"
+
+    lines = _collect(5)  # 토요일: 항상
+    if watch_sunday:
+        lines += _collect(6, groups=[DECK], months=_months_to_check()[:1])
+
+    header = ("🏕️ 앵봉산캠핑장 빈자리 (토: 전체 / 일: 데크·이번달)" if watch_sunday
+              else "🏕️ 앵봉산캠핑장 빈자리 (토: 전체)")
 
     if lines:
-        msg = ("🏕️ 앵봉산캠핑장 빈자리 (토: 전체 / 일: 데크·이번달)\n\n"
-               + "\n".join(lines)
+        msg = (header + "\n\n" + "\n".join(lines)
                + f"\n\n예약: {cs.BASE}/web/main?shopEncode={cs.SHOP_ENCODE}")
         _send_telegram(token, chat_id, msg)
         print(f"sent {len(lines)} line(s)")
     elif os.environ.get("NOTIFY_ALWAYS") == "1":
-        _send_telegram(token, chat_id,
-                       "앵봉산캠핑장: 토요일 전체/일요일 데크(이번달) 잔여 있는 날 없음")
+        _send_telegram(token, chat_id, header + ": 잔여 있는 날 없음")
         print("sent (none)")
     else:
         print("no availability; nothing sent")
