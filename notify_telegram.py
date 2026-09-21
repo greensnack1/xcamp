@@ -79,6 +79,30 @@ def _collect(weekday: int, groups: list[str] | None = None,
     return lines
 
 
+def _collect_date(date: str, groups: list[str] | None = None) -> list[str]:
+    """특정 날짜(YYYYMMDD)의 실제 예약 가능 사이트가 있으면 요약 라인 반환.
+
+    요일 감시(_collect)와 달리 '그 날짜 하루'만 본다. groups=None이면 전체 그룹.
+    해당 월의 GetBookPlayDate에 그 날이 없거나 실제 예약가능 사이트가 0이면 빈 리스트.
+    """
+    group_items = [(c, n) for c, n in cs.PRODUCT_GROUPS.items()
+                   if groups is None or c in groups]
+    remain = cs.get_play_dates(date[:6])  # YYYYMM
+    if not remain.get(date):
+        return []
+    parts = []
+    available = 0
+    for code, name in group_items:
+        sites = cs.get_available_sites(code, date)
+        available += len(sites)
+        parts.append(f"{name} {len(sites)}")
+    if available == 0:
+        return []
+    d = _dt.datetime.strptime(date, "%Y%m%d")
+    wl = cs.WEEKDAY_LABELS[d.weekday()]
+    return [f"• {cs.fmt(date)} ({wl}) → " + " / ".join(parts)]
+
+
 def _send_telegram(token: str, chat_id: str, text: str) -> None:
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     data = urllib.parse.urlencode({
@@ -110,8 +134,11 @@ def main() -> None:
     if watch_sunday:
         lines += _collect(6, groups=[DECK], months=_months_to_check()[:1])
 
-    header = ("🏕️ 앵봉산캠핑장 빈자리 (토: 전체 / 일: 데크·이번달)" if watch_sunday
-              else "🏕️ 앵봉산캠핑장 빈자리 (토: 전체)")
+    # 특정 날짜 감시(하드코딩): 10월 9일(목) 데크+글램핑 빈자리도 함께 조회
+    lines += _collect_date("20261009")
+
+    header = ("🏕️ 앵봉산캠핑장 빈자리 (토: 전체 / 일: 데크·이번달 / 10.9)" if watch_sunday
+              else "🏕️ 앵봉산캠핑장 빈자리 (토: 전체 / 10.9)")
 
     if lines:
         msg = (header + "\n\n" + "\n".join(lines)
