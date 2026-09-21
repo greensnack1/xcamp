@@ -202,6 +202,47 @@ def check_month(year_month: str, weekday: int = 5,
     return found
 
 
+def check_date(date: str, groups: list[str] | None = None) -> list[str]:
+    """특정 날짜(YYYYMMDD) 빈자리를 조회해 출력하고, 요약 라인 리스트를 반환.
+
+    요일 감시(check_month)와 달리 '그 날짜 하루'만 본다. groups=None이면 전체 그룹.
+    """
+    group_items = [(c, n) for c, n in PRODUCT_GROUPS.items()
+                   if groups is None or c in groups]
+    wl = WEEKDAY_LABELS[dt.datetime.strptime(date, "%Y%m%d").weekday()]
+    print(f"\n=== {date[:4]}년 {date[4:6]}월 {date[6:8]}일 ({wl}) ===")
+    found = []
+    try:
+        remain = get_play_dates(date[:6])
+    except SessionExpired as e:
+        print(f"  [세션 오류] {e}")
+        raise SystemExit(2)
+
+    total = remain.get(date)
+    if total:
+        parts = []
+        available = 0
+        for code, name in group_items:
+            try:
+                sites = get_available_sites(code, date)
+            except SessionExpired:
+                raise SystemExit(2)
+            available += len(sites)
+            if sites:
+                names = ", ".join(s["product_name"] for s in sites)
+                parts.append(f"{name} {len(sites)}자리 [{names}]")
+            else:
+                parts.append(f"{name} 0")
+        if available > 0:
+            line = f"{fmt(date)} ({wl}) : 잔여 {total} → " + " / ".join(parts)
+            print(f"  {line}")
+            found.append(line)
+
+    if not found:
+        print("  (잔여 있는 날 없음)")
+    return found
+
+
 def current_and_next_month() -> list[str]:
     """호출 시점 기준 이번 달과 다음 달을 YYYYMM 으로."""
     today = dt.date.today()
@@ -235,10 +276,11 @@ def main() -> None:
     # 기본: 알림 규칙과 동일하게 토요일(전체 그룹, 이번+다음 달)
     #       + 일요일(데크만, 이번 달만) 조회
     months = current_and_next_month()
-    print("앵봉산캠핑장 빈자리 조회 (토: 전체 / 일: 데크·이번달)")
+    print("앵봉산캠핑장 빈자리 조회 (토: 전체 / 일: 데크·이번달 / 10.9)")
     for ym in months:
         check_month(ym, 5)  # 토요일, 전체 그룹
     check_month(months[0], 6, groups=["0001"])  # 일요일, 데크만, 이번 달만
+    check_date("20261009")  # 특정 날짜: 10월 9일(금) 데크+글램핑
 
 
 if __name__ == "__main__":

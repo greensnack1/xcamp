@@ -134,7 +134,7 @@ def main() -> None:
     if watch_sunday:
         lines += _collect(6, groups=[DECK], months=_months_to_check()[:1])
 
-    # 특정 날짜 감시(하드코딩): 10월 9일(목) 데크+글램핑 빈자리도 함께 조회
+    # 특정 날짜 감시(하드코딩): 10월 9일(금) 데크+글램핑 빈자리도 함께 조회
     lines += _collect_date("20261009")
 
     header = ("🏕️ 앵봉산캠핑장 빈자리 (토: 전체 / 일: 데크·이번달 / 10.9)" if watch_sunday
